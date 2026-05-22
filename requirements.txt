@@ -1,0 +1,9 @@
+langgraph
+langchain
+langchain-openai
+chromadb
+streamlit
+python-dotenv
+pydantic
+mcp
+duckduckgo-search
