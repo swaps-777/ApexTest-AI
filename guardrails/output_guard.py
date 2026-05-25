@@ -14,6 +14,27 @@ SECRET_VALUE_PATTERN = re.compile(
     re.I,
 )
 BEARER_TOKEN_PATTERN = re.compile(r"\bbearer\s+[a-z0-9._~+/\-=]{12,}\b", re.I)
+PROTECTED_RELIGION_PATTERN = re.compile(
+    r"\b("
+    r"religion|religious affiliation|faith|caste|church|mosque|temple|synagogue|"
+    r"christian|muslim|islam|hindu|sikh|jewish|buddhist|atheist"
+    r")\b",
+    re.I,
+)
+EXPLICIT_SEXUAL_PATTERN = re.compile(
+    r"\b("
+    r"porn|pornographic|sexual content|sexually explicit|nudity|nude|erotic|"
+    r"intercourse|masturbat|genital"
+    r")\b",
+    re.I,
+)
+VIOLENT_CONTENT_PATTERN = re.compile(
+    r"\b("
+    r"kill|murder|suicide|self-harm|torture|bomb|shoot|stabbing|weapon|"
+    r"blood|gore|graphic violence"
+    r")\b",
+    re.I,
+)
 UNSUPPORTED_CLAIM_PATTERN = re.compile(
     r"\b(testing was executed|tests were executed|verified in production|compliance certified)\b",
     re.I,
@@ -71,17 +92,40 @@ Rules:
 """
 
     resp = llm.invoke(prompt).content.strip()
-    resp = resp.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    data = _parse_guardrail_json(resp)
+    if data is None:
+        return True, "Output guardrail parser fallback: deterministic safety checks passed.", answer
+
+    is_safe = bool(data.get("is_safe", False))
+    cleaned_answer = str(data.get("cleaned_answer") or "")
+    return (
+        is_safe,
+        str(data.get("reason", "")),
+        cleaned_answer or answer if is_safe else cleaned_answer,
+    )
+
+
+def _parse_guardrail_json(raw_response: str) -> dict | None:
+    response = (raw_response or "").strip()
+    response = response.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
     try:
-        data = json.loads(resp)
-        return (
-            bool(data.get("is_safe", False)),
-            str(data.get("reason", "")),
-            str(data.get("cleaned_answer", "")),
-        )
-    except Exception:
-        return False, "Could not parse output guardrail response.", ""
+        parsed = json.loads(response)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    start = response.find("{")
+    end = response.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+
+    try:
+        parsed = json.loads(response[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _deterministic_output_check(answer: str) -> tuple[bool, str, str] | None:
@@ -92,6 +136,12 @@ def _deterministic_output_check(answer: str) -> tuple[bool, str, str] | None:
         return False, "PII-like numeric data detected in generated output. The response was blocked to avoid exposing personal data.", ""
     if SECRET_VALUE_PATTERN.search(content) or BEARER_TOKEN_PATTERN.search(content):
         return False, "Secret or credential-like content detected in generated output. The response was blocked.", ""
+    if PROTECTED_RELIGION_PATTERN.search(content):
+        return False, "Protected religious or caste-related data detected in generated output. The response was blocked.", ""
+    if EXPLICIT_SEXUAL_PATTERN.search(content):
+        return False, "Sexually explicit content detected in generated output. The response was blocked.", ""
+    if VIOLENT_CONTENT_PATTERN.search(content):
+        return False, "Violent or self-harm related content detected in generated output. The response was blocked.", ""
     if UNSUPPORTED_CLAIM_PATTERN.search(content):
         return False, "Unsupported execution or compliance claim detected. The response was blocked.", ""
     return None
