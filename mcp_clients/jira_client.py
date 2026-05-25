@@ -37,17 +37,31 @@ async def _call_get_issue_via_mcp_async(issue_key: str) -> Dict[str, Any]:
                 }
 
             first_content = result.content[0]
+            print(f"[MCP Client] Received content type: {type(first_content)}", flush=True)
+            print(f"[MCP Client] Has text attr: {hasattr(first_content, 'text')}", flush=True)
 
             if hasattr(first_content, "text"):
+                response_text = first_content.text
+                print(f"[MCP Client] Response text (first 200 chars): {response_text[:200]}", flush=True)
                 try:
-                    data = json.loads(first_content.text)
+                    data = json.loads(response_text)
+                    print(f"[MCP Client] Successfully parsed JSON, keys: {data.keys()}", flush=True)
                     data["source"] = "mcp"
                     return data
-                except Exception:
+                except json.JSONDecodeError as e:
+                    print(f"[MCP Client] JSON parse error: {e}", flush=True)
+                    print(f"[MCP Client] Full response: {response_text}", flush=True)
                     return {
                         "success": False,
-                        "error": "Could not parse MCP response as JSON.",
-                        "raw_response": first_content.text,
+                        "error": f"Could not parse MCP response as JSON: {str(e)}",
+                        "raw_response": response_text[:500],
+                        "source": "mcp",
+                    }
+                except Exception as e:
+                    print(f"[MCP Client] Unexpected error: {e}", flush=True)
+                    return {
+                        "success": False,
+                        "error": f"MCP response processing failed: {str(e)}",
                         "source": "mcp",
                     }
 
