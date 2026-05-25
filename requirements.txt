@@ -3,7 +3,13 @@ langchain
 langchain-openai
 chromadb
 streamlit
+fastapi
+uvicorn
+openpyxl
+python-docx
+pypdf
 python-dotenv
 pydantic
 mcp
 duckduckgo-search
+pytest

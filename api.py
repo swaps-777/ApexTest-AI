@@ -65,7 +65,7 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail=f"Unsupported test types: {', '.join(unsupported)}")
 
     effective_query = build_effective_query(query, test_types)
-    result = get_graph().invoke({"user_query": effective_query})
+    result = get_graph().invoke({"raw_user_query": query, "user_query": effective_query})
     return normalize_graph_result(result)
 
 

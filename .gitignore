@@ -12,9 +12,14 @@ venv/
 
 # Generated at runtime
 chroma_db/
+uploads/
 
 # Streamlit
 .streamlit/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
 # OS
 .DS_Store

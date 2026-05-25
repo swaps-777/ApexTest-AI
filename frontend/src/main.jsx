@@ -283,6 +283,8 @@ function App() {
           </button>
         </section>
 
+        <GuardrailPanel result={result} />
+
         <InsightCards traceability={traceabilityCards} coverage={coverageCards} />
 
         <QualityGatePanel qualityGate={result.quality_gate} status={result.status} />
@@ -298,6 +300,24 @@ function App() {
         <Plus />
       </button>
     </div>
+  );
+}
+
+function GuardrailPanel({ result }) {
+  if (!['blocked', 'error'].includes(result.status)) return null;
+
+  const reason =
+    result.debug?.output_rejection_reason ||
+    result.debug?.errors?.join(', ') ||
+    result.final_answer ||
+    'ApexTest could not process this request because a guardrail or evaluation check failed.';
+
+  return (
+    <section className="guardrail-panel">
+      <span>{result.status === 'blocked' ? 'Guardrail Blocked Request' : 'Processing Error'}</span>
+      <h2>Request Cannot Be Processed</h2>
+      <p>{reason}</p>
+    </section>
   );
 }
 

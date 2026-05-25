@@ -445,6 +445,7 @@ button {
 .case-list,
 .insight-grid,
 .knowledge-panel,
+.guardrail-panel,
 .quality-gate-panel,
 .empty-state {
   max-width: 1220px;
@@ -466,6 +467,7 @@ button {
 }
 
 .knowledge-panel,
+.guardrail-panel,
 .quality-gate-panel {
   border: 1px solid var(--outline);
   border-radius: var(--radius-lg);
@@ -478,6 +480,12 @@ button {
   margin-bottom: 30px;
 }
 
+.guardrail-panel {
+  margin-bottom: 24px;
+  border-color: rgba(255, 180, 171, 0.42);
+  background: rgba(147, 0, 10, 0.16);
+}
+
 .knowledge-header {
   display: flex;
   align-items: center;
@@ -487,6 +495,7 @@ button {
 }
 
 .knowledge-header span,
+.guardrail-panel span,
 .quality-gate-panel span {
   display: block;
   margin-bottom: 8px;
@@ -498,9 +507,17 @@ button {
 }
 
 .knowledge-header h2,
+.guardrail-panel h2,
 .quality-gate-panel h2 {
   margin: 0;
   font-size: 26px;
+}
+
+.guardrail-panel p {
+  color: #ffdad6;
+  line-height: 1.6;
+  margin: 12px 0 0;
+  white-space: pre-wrap;
 }
 
 .upload-action {
@@ -987,6 +1004,7 @@ button {
   .case-list,
   .insight-grid,
   .knowledge-panel,
+  .guardrail-panel,
   .quality-gate-panel {
     grid-template-columns: 1fr;
     padding-inline: 16px;

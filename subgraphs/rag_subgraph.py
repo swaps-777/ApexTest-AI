@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, END
 
 from llm import llm
 from state import TestCasesGeneratorState
-from rag.chroma_store import retrieve
+from rag.chroma_store import retrieve_with_metadata
 from guardrails.agentic_guard import check_for_rag_access
 
 
@@ -47,12 +47,20 @@ Retrieve relevant testing best practices, BRD business rules, validation rules,
 boundary cases, negative testing guidance, API/UI testing guidance, and traceability rules.
 """.strip()
 
-    docs = retrieve(query)
+    chunks = retrieve_with_metadata(query)
+    docs = [chunk["text"] for chunk in chunks]
+    sources = []
+    for index, chunk in enumerate(chunks):
+        metadata = chunk.get("metadata") or {}
+        filename = metadata.get("filename") or metadata.get("source") or f"chunk_{index}"
+        chunk_index = metadata.get("chunk_index", index)
+        source_type = metadata.get("source_type", "unknown")
+        sources.append(f"{filename}#{chunk_index} ({source_type})")
 
     return {
         "rag_query": query,
         "rag_context": "\n\n---\n\n".join(docs),
-        "rag_sources": [f"chunk_{i}" for i in range(len(docs))],
+        "rag_sources": sources,
     }
 
 

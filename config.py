@@ -18,6 +18,9 @@ BRD_SAMPLE_PATH: Path = SEED_DATA_DIR / "brd_sample.md"
 
 CHROMA_DB_PATH: Path = PROJECT_ROOT / "chroma_db"
 OUTPUT_DIR: Path = PROJECT_ROOT / "outputs"
+UPLOAD_DIR: Path = PROJECT_ROOT / "uploads"
+RAG_UPLOAD_DIR: Path = UPLOAD_DIR / "rag_documents"
+RAG_MANIFEST_PATH: Path = RAG_UPLOAD_DIR / "manifest.json"
 
 GENERATED_MARKDOWN_PATH: Path = OUTPUT_DIR / "generated_test_cases.md"
 GENERATED_CSV_PATH: Path = OUTPUT_DIR / "generated_test_cases.csv"

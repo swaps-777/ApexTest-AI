@@ -5,6 +5,7 @@ from typing import Any, Dict, List, TypedDict
 
 class TestCasesGeneratorState(TypedDict, total=False):
     # Original user request
+    raw_user_query: str
     user_query: str
 
     # Input guardrail result
@@ -23,6 +24,7 @@ class TestCasesGeneratorState(TypedDict, total=False):
     needs_boundary_tests: bool
     needs_api_tests: bool
     needs_ui_tests: bool
+    needs_regression_tests: bool
 
     # JIRA subgraph outputs
     jira_story: Dict[str, Any]
@@ -46,12 +48,20 @@ class TestCasesGeneratorState(TypedDict, total=False):
     rag_answer: str
     rag_evaluation_reason: str
 
+    # Requirement quality gate outputs
+    requirement_quality_status: str
+    requirement_quality_score: float
+    requirement_quality_gaps: List[str]
+    requirement_clarifying_questions: List[str]
+    requirement_quality_reason: str
+
     # Test generation outputs
     functional_tests: List[Dict[str, Any]]
     negative_tests: List[Dict[str, Any]]
     boundary_tests: List[Dict[str, Any]]
     api_tests: List[Dict[str, Any]]
     ui_tests: List[Dict[str, Any]]
+    regression_tests: List[Dict[str, Any]]
 
     # Final aggregation
     traceability_matrix: List[Dict[str, Any]]
