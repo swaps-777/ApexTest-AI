@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +25,10 @@ from services.response_normalizer import TEST_TYPE_STATE_KEYS, normalize_graph_r
 
 
 app = FastAPI(title="ApexTest API", version="1.0.0")
+generation_executor = ThreadPoolExecutor(max_workers=int(os.getenv("GENERATION_WORKERS", "2")))
+generation_jobs: dict[str, dict[str, Any]] = {}
+generation_jobs_lock = threading.Lock()
+GENERATION_JOB_TTL_SECONDS = int(os.getenv("GENERATION_JOB_TTL_SECONDS", "3600"))
 
 cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
 allow_origins = [item.strip() for item in cors_origins.split(",") if item.strip()]
@@ -49,18 +58,7 @@ class ExportRequest(BaseModel):
     debug: dict = Field(default_factory=dict)
 
 
-@app.get("/api/health")
-def health() -> dict:
-    return {
-        "status": "ok",
-        "service": "apextest-api",
-        "default_jira_issue_key": DEFAULT_JIRA_ISSUE_KEY,
-        "jira_config": get_jira_config_status(),
-    }
-
-
-@app.post("/api/generate")
-def generate(request: GenerateRequest) -> dict:
+def _validate_generate_request(request: GenerateRequest) -> tuple[str, list[str]]:
     query = request.query.strip()
     test_types = [item.strip().lower() for item in request.test_types if item.strip()]
 
@@ -73,14 +71,97 @@ def generate(request: GenerateRequest) -> dict:
     if unsupported:
         raise HTTPException(status_code=400, detail=f"Unsupported test types: {', '.join(unsupported)}")
 
+    return query, test_types
+
+
+def _run_generation(query: str, test_types: list[str]) -> dict:
+    effective_query = build_effective_query(query, test_types)
+    result = get_graph().invoke({"raw_user_query": query, "user_query": effective_query})
+    return normalize_graph_result(result)
+
+
+def _cleanup_generation_jobs() -> None:
+    cutoff = time.time() - GENERATION_JOB_TTL_SECONDS
+    with generation_jobs_lock:
+        expired = [
+            job_id
+            for job_id, job in generation_jobs.items()
+            if job.get("updated_at", job.get("created_at", 0)) < cutoff
+        ]
+        for job_id in expired:
+            generation_jobs.pop(job_id, None)
+
+
+def _set_generation_job(job_id: str, **updates: Any) -> None:
+    with generation_jobs_lock:
+        job = generation_jobs.get(job_id)
+        if not job:
+            return
+        job.update(updates)
+        job["updated_at"] = time.time()
+
+
+def _execute_generation_job(job_id: str, query: str, test_types: list[str]) -> None:
+    _set_generation_job(job_id, status="running")
     try:
-        effective_query = build_effective_query(query, test_types)
-        result = get_graph().invoke({"raw_user_query": query, "user_query": effective_query})
-        return normalize_graph_result(result)
+        result = _run_generation(query, test_types)
+        _set_generation_job(job_id, status="completed", result=result)
+    except ValueError as exc:
+        _set_generation_job(job_id, status="failed", error=f"Configuration error: {str(exc)}")
+    except Exception as exc:
+        _set_generation_job(job_id, status="failed", error=f"Test generation failed: {str(exc)}")
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {
+        "status": "ok",
+        "service": "apextest-api",
+        "default_jira_issue_key": DEFAULT_JIRA_ISSUE_KEY,
+        "jira_config": get_jira_config_status(),
+    }
+
+
+@app.post("/api/generate")
+def generate(request: GenerateRequest) -> dict:
+    query, test_types = _validate_generate_request(request)
+    try:
+        return _run_generation(query, test_types)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=f"Configuration error: {str(exc)}") from None
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Test generation failed: {str(exc)}") from None
+
+
+@app.post("/api/generate/jobs")
+def create_generate_job(request: GenerateRequest) -> dict:
+    query, test_types = _validate_generate_request(request)
+    _cleanup_generation_jobs()
+
+    job_id = uuid.uuid4().hex
+    now = time.time()
+    with generation_jobs_lock:
+        generation_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "created_at": now,
+            "updated_at": now,
+            "result": None,
+            "error": None,
+        }
+
+    generation_executor.submit(_execute_generation_job, job_id, query, test_types)
+    return {"job_id": job_id, "status": "queued"}
+
+
+@app.get("/api/generate/jobs/{job_id}")
+def get_generate_job(job_id: str) -> dict:
+    with generation_jobs_lock:
+        job = generation_jobs.get(job_id)
+        if job:
+            return dict(job)
+
+    raise HTTPException(status_code=404, detail="Generation job not found or expired.")
 
 
 @app.get("/api/rag/documents")

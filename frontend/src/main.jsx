@@ -22,6 +22,8 @@ import {
 import './styles.css';
 
 const API_BASE_URL = window.location.origin;
+const GENERATION_POLL_INTERVAL_MS = 2000;
+const GENERATION_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 const TEST_TYPES = [
   { label: 'Functional', value: 'functional' },
@@ -141,7 +143,7 @@ function App() {
     setIsLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/generate`, {
+      const response = await fetch(`${API_BASE_URL}/api/generate/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: trimmed, test_types: selectedTypes }),
@@ -151,13 +153,39 @@ function App() {
       if (!response.ok) {
         throw new Error(payload.detail || 'Generation failed.');
       }
-      setResult(payload);
+
+      const completedResult = await pollGenerationJob(payload.job_id);
+      setResult(completedResult);
       setExpandedCaseIds([]);
     } catch (generationError) {
       setError(generationError.message);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function pollGenerationJob(jobId) {
+    if (!jobId) throw new Error('Generation job was not created.');
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < GENERATION_POLL_TIMEOUT_MS) {
+      await wait(GENERATION_POLL_INTERVAL_MS);
+
+      const response = await fetch(`${API_BASE_URL}/api/generate/jobs/${jobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || 'Unable to check generation status.');
+      }
+
+      if (payload.status === 'completed') {
+        return payload.result;
+      }
+      if (payload.status === 'failed') {
+        throw new Error(payload.error || 'Generation failed.');
+      }
+    }
+
+    throw new Error('Generation is still running. Please try again in a few minutes.');
   }
 
   async function exportExcel() {
@@ -632,6 +660,12 @@ function formatScore(value, status) {
 function formatType(value) {
   if (!value) return 'General';
   return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 function deriveTraceability(traceability, cases) {
