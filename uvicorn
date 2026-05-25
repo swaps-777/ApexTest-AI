@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+PORT = os.getenv("PORT", "8000")
+new_args = []
+for a in sys.argv[1:]:
+    a = a.replace('$PORT', PORT).replace('${PORT}', PORT)
+    new_args.append(a)
+
+os.execvp(sys.executable, [sys.executable, "-m", "uvicorn"] + new_args)
