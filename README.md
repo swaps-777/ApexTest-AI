@@ -118,6 +118,28 @@ npm install
 npm run dev
 ```
 
+## Deploying to Railway
+
+This repository can be deployed to Railway using the provided Dockerfile and `Procfile`.
+
+1. Build the frontend and backend together, then serve the app on Railway's assigned port:
+
+```bash
+git push railway main
+```
+
+2. Railway will use `Dockerfile` to build the React frontend assets and install Python dependencies.
+3. The FastAPI app will serve the built frontend from `frontend/dist` and expose the API on the Railway-assigned `PORT`.
+
+Optional environment variables:
+
+- `OPENAI_API_KEY` — OpenAI access key for LLM usage
+- `JIRA_BASE_URL` — JIRA Cloud base URL
+- `JIRA_EMAIL` — JIRA account email
+- `JIRA_API_TOKEN` — JIRA API token
+- `DEFAULT_JIRA_ISSUE_KEY` — sample issue key for local testing
+- `CORS_ALLOW_ORIGINS` — comma-separated origins allowed by CORS, defaults to `*`
+
 ## RAG and Knowledge Base
 
 The repository seeds its local ChromaDB store from:

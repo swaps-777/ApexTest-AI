@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app_core import build_effective_query, get_graph
@@ -16,13 +20,20 @@ from services.response_normalizer import TEST_TYPE_STATE_KEYS, normalize_graph_r
 
 app = FastAPI(title="ApexTest API", version="1.0.0")
 
+cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
+allow_origins = [item.strip() for item in cors_origins.split(",") if item.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allow_origins or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+static_dir = Path(__file__).resolve().parent / "frontend" / "dist"
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
 
 
 class GenerateRequest(BaseModel):
