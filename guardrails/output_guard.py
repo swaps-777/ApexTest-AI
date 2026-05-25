@@ -6,24 +6,19 @@ import re
 from llm import llm
 
 
-OUTPUT_BLOCK_PATTERNS = [
-    (
-        re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b", re.I),
-        "PII detected in generated output. The response was blocked to avoid exposing personal data.",
-    ),
-    (
-        re.compile(r"\b(?:\+?\d[\s-]?){10,16}\b"),
-        "PII-like numeric data detected in generated output. The response was blocked to avoid exposing personal data.",
-    ),
-    (
-        re.compile(r"\b(api[_-]?key|secret|password|passwd|token|private[_-]?key|bearer\s+[a-z0-9._-]+)\b", re.I),
-        "Secret or credential-like content detected in generated output. The response was blocked.",
-    ),
-    (
-        re.compile(r"\b(testing was executed|tests were executed|verified in production|compliance certified)\b", re.I),
-        "Unsupported execution or compliance claim detected. The response was blocked.",
-    ),
-]
+EMAIL_PATTERN = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b", re.I)
+SSN_PATTERN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+CARD_CANDIDATE_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+SECRET_VALUE_PATTERN = re.compile(
+    r"\b(api[_-]?key|secret|password|passwd|token|private[_-]?key)\b\s*[:=]\s*[\"']?[a-z0-9._~+/\-=]{8,}",
+    re.I,
+)
+BEARER_TOKEN_PATTERN = re.compile(r"\bbearer\s+[a-z0-9._~+/\-=]{12,}\b", re.I)
+UNSUPPORTED_CLAIM_PATTERN = re.compile(
+    r"\b(testing was executed|tests were executed|verified in production|compliance certified)\b",
+    re.I,
+)
+SAFE_TEST_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test.com", "invalid.test"}
 
 
 def check_output(answer: str) -> tuple[bool, str, str]:
@@ -91,7 +86,41 @@ Rules:
 
 def _deterministic_output_check(answer: str) -> tuple[bool, str, str] | None:
     content = answer or ""
-    for pattern, reason in OUTPUT_BLOCK_PATTERNS:
-        if pattern.search(content):
-            return False, reason, ""
+    if _contains_real_email(content):
+        return False, "PII detected in generated output. The response was blocked to avoid exposing personal data.", ""
+    if SSN_PATTERN.search(content) or _contains_payment_card_number(content):
+        return False, "PII-like numeric data detected in generated output. The response was blocked to avoid exposing personal data.", ""
+    if SECRET_VALUE_PATTERN.search(content) or BEARER_TOKEN_PATTERN.search(content):
+        return False, "Secret or credential-like content detected in generated output. The response was blocked.", ""
+    if UNSUPPORTED_CLAIM_PATTERN.search(content):
+        return False, "Unsupported execution or compliance claim detected. The response was blocked.", ""
     return None
+
+
+def _contains_real_email(content: str) -> bool:
+    for match in EMAIL_PATTERN.finditer(content):
+        domain = match.group(0).rsplit("@", 1)[-1].lower().rstrip(".")
+        if domain not in SAFE_TEST_EMAIL_DOMAINS:
+            return True
+    return False
+
+
+def _contains_payment_card_number(content: str) -> bool:
+    for match in CARD_CANDIDATE_PATTERN.finditer(content):
+        digits = re.sub(r"\D", "", match.group(0))
+        if 13 <= len(digits) <= 19 and _passes_luhn_check(digits):
+            return True
+    return False
+
+
+def _passes_luhn_check(digits: str) -> bool:
+    total = 0
+    reverse_digits = digits[::-1]
+    for index, char in enumerate(reverse_digits):
+        number = int(char)
+        if index % 2 == 1:
+            number *= 2
+            if number > 9:
+                number -= 9
+        total += number
+    return total % 10 == 0

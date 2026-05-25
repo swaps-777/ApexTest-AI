@@ -97,6 +97,10 @@ def get_issue_from_jira(issue_key: str) -> Dict[str, Any]:
         if result.get("success"):
             return result
 
+        if result.get("status_code") or result.get("missing_config"):
+            print(f"[JIRA MCP] Jira request failed via MCP. Reason: {result.get('error')}", flush=True)
+            return result
+
         print(f"[JIRA MCP] Failed. Falling back to REST API. Reason: {result.get('error')}")
         return _call_get_issue_via_rest_fallback(issue_key)
 
