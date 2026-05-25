@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from typing import Any, Dict
 
 from mcp import ClientSession, StdioServerParameters
@@ -18,6 +19,7 @@ async def _call_get_issue_via_mcp_async(issue_key: str) -> Dict[str, Any]:
     server_params = StdioServerParameters(
         command=JIRA_MCP_COMMAND,
         args=JIRA_MCP_ARGS,
+        env=os.environ.copy(),
     )
 
     async with stdio_client(server_params) as (read, write):

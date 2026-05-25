@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from app_core import build_effective_query, get_graph
 from config import DEFAULT_JIRA_ISSUE_KEY
 from services.excel_export import build_test_pack_workbook
+from services.jira_service import get_jira_config_status
 from services.rag_document_service import delete_document, ingest_document, list_documents
 from services.response_normalizer import TEST_TYPE_STATE_KEYS, normalize_graph_result
 
@@ -54,6 +55,7 @@ def health() -> dict:
         "status": "ok",
         "service": "apextest-api",
         "default_jira_issue_key": DEFAULT_JIRA_ISSUE_KEY,
+        "jira_config": get_jira_config_status(),
     }
 
 
