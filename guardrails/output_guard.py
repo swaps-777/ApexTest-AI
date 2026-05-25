@@ -10,9 +10,10 @@ EMAIL_PATTERN = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b", re.I)
 SSN_PATTERN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 CARD_CANDIDATE_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 SECRET_VALUE_PATTERN = re.compile(
-    r"\b(api[_-]?key|secret|password|passwd|token|private[_-]?key)\b\s*[:=]\s*[\"']?[a-z0-9._~+/\-=]{8,}",
+    r"\b(api[_-]?key|secret|token|private[_-]?key)\b\s*[:=]\s*[\"']?[a-z0-9._~+/\-=]{8,}",
     re.I,
 )
+PASSWORD_VALUE_PATTERN = re.compile(r"\b(passwd|password)\b\s*[:=]\s*[\"']?([^\s\"']{8,})", re.I)
 BEARER_TOKEN_PATTERN = re.compile(r"\bbearer\s+[a-z0-9._~+/\-=]{12,}\b", re.I)
 PROTECTED_RELIGION_PATTERN = re.compile(
     r"\b("
@@ -40,6 +41,20 @@ UNSUPPORTED_CLAIM_PATTERN = re.compile(
     re.I,
 )
 SAFE_TEST_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test.com", "invalid.test"}
+SAFE_TEST_PASSWORD_VALUES = {
+    "password",
+    "password1",
+    "password123",
+    "testpassword",
+    "validpassword",
+    "validpassword123",
+    "invalidpassword",
+    "newpassword",
+    "oldpassword",
+    "changeme",
+    "placeholder",
+    "dummysecret",
+}
 
 
 def check_output(answer: str) -> tuple[bool, str, str]:
@@ -134,7 +149,7 @@ def _deterministic_output_check(answer: str) -> tuple[bool, str, str] | None:
         return False, "PII detected in generated output. The response was blocked to avoid exposing personal data.", ""
     if SSN_PATTERN.search(content) or _contains_payment_card_number(content):
         return False, "PII-like numeric data detected in generated output. The response was blocked to avoid exposing personal data.", ""
-    if SECRET_VALUE_PATTERN.search(content) or BEARER_TOKEN_PATTERN.search(content):
+    if SECRET_VALUE_PATTERN.search(content) or BEARER_TOKEN_PATTERN.search(content) or _contains_real_password_value(content):
         return False, "Secret or credential-like content detected in generated output. The response was blocked.", ""
     if PROTECTED_RELIGION_PATTERN.search(content):
         return False, "Protected religious or caste-related data detected in generated output. The response was blocked.", ""
@@ -160,6 +175,18 @@ def _contains_payment_card_number(content: str) -> bool:
         digits = re.sub(r"\D", "", match.group(0))
         if 13 <= len(digits) <= 19 and _passes_luhn_check(digits):
             return True
+    return False
+
+
+def _contains_real_password_value(content: str) -> bool:
+    for match in PASSWORD_VALUE_PATTERN.finditer(content):
+        value = match.group(2).strip().strip(".,;:)]}").lower()
+        normalized = re.sub(r"[^a-z0-9]", "", value)
+        if normalized in SAFE_TEST_PASSWORD_VALUES:
+            continue
+        if "password" in normalized and len(normalized) <= 20:
+            continue
+        return True
     return False
 
 

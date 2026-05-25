@@ -82,11 +82,15 @@ def normalize_graph_result(result: dict[str, Any]) -> dict[str, Any]:
     elif result.get("errors"):
         status = "error"
 
+    public_test_cases = test_cases if status == "ready" else []
+    public_traceability_matrix = traceability_matrix if status == "ready" else []
+    public_coverage_summary = coverage_summary if status == "ready" else []
+
     return {
         "jira_key": jira_key,
         "status": status,
         "summary": {
-            "total_cases": len(test_cases),
+            "total_cases": len(public_test_cases),
             "jira_score": jira_score,
             "rag_score": rag_score,
             "score_mode": "live_response",
@@ -94,9 +98,9 @@ def normalize_graph_result(result: dict[str, Any]) -> dict[str, Any]:
             "requirement_quality_status": result.get("requirement_quality_status"),
             "requirement_quality_score": result.get("requirement_quality_score"),
         },
-        "test_cases": test_cases,
-        "traceability_matrix": traceability_matrix,
-        "coverage_summary": coverage_summary,
+        "test_cases": public_test_cases,
+        "traceability_matrix": public_traceability_matrix,
+        "coverage_summary": public_coverage_summary,
         "quality_gate": {
             "status": result.get("requirement_quality_status"),
             "score": result.get("requirement_quality_score"),

@@ -46,6 +46,14 @@ def test_output_guard_allows_generic_auth_terms():
     assert result is None
 
 
+def test_output_guard_allows_synthetic_password_test_data():
+    answer = "Test Data: password: Password123 for a placeholder login user."
+
+    result = _deterministic_output_check(answer)
+
+    assert result is None
+
+
 def test_output_guard_blocks_secret_value_assignments():
     answer = "Use token=abc123456789xyz during setup."
 
