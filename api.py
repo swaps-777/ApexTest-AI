@@ -75,9 +75,14 @@ def generate(request: GenerateRequest) -> dict:
     if unsupported:
         raise HTTPException(status_code=400, detail=f"Unsupported test types: {', '.join(unsupported)}")
 
-    effective_query = build_effective_query(query, test_types)
-    result = get_graph().invoke({"raw_user_query": query, "user_query": effective_query})
-    return normalize_graph_result(result)
+    try:
+        effective_query = build_effective_query(query, test_types)
+        result = get_graph().invoke({"raw_user_query": query, "user_query": effective_query})
+        return normalize_graph_result(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=f"Configuration error: {str(exc)}") from None
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Test generation failed: {str(exc)}") from None
 
 
 @app.get("/api/rag/documents")
