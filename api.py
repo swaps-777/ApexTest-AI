@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -30,23 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-static_dir = Path(__file__).resolve().parent / "frontend" / "dist"
-if static_dir.exists():
-    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
-
-    @app.get("/", include_in_schema=False)
-    async def serve_index():
-        return FileResponse(static_dir / "index.html")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str):
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404)
-        path = static_dir / full_path
-        if path.exists() and path.is_file():
-            return FileResponse(path)
-        return FileResponse(static_dir / "index.html")
 
 
 class GenerateRequest(BaseModel):
@@ -142,3 +125,20 @@ def export_excel(request: ExportRequest) -> Response:
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+static_dir = Path(__file__).resolve().parent / "frontend" / "dist"
+if static_dir.exists():
+    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        return FileResponse(static_dir / "index.html")
+
+    @app.middleware("http")
+    async def spa_fallback(request: Request, call_next):
+        response = await call_next(request)
+        if request.method == "GET" and response.status_code == 404:
+            if not request.url.path.startswith("/api"):
+                return FileResponse(static_dir / "index.html")
+        return response
